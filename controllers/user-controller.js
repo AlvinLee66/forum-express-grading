@@ -39,6 +39,7 @@ const userController = {
     res.redirect('/signin')
   },
   getUser: (req, res, next) => {
+    const { FavoritedRestaurants, LikedRestaurants, Followers, Followings } = req.user
     const userId = req.params.id
     return Promise.all([
       User.findByPk(userId, { raw: true }),
@@ -53,7 +54,15 @@ const userController = {
     ])
       .then(([user, restComments]) => {
         if (!user) throw new Error('使用者不存在！')
-        return res.render('users/profile', { user, restComments })
+
+        return res.render('users/profile', {
+          user,
+          restComments,
+          FavoritedRestaurants,
+          LikedRestaurants,
+          Followers,
+          Followings
+        })
       })
       .catch(err => next(err))
   },
@@ -200,7 +209,8 @@ const userController = {
         const result = users.map(user => ({
           ...user.toJSON(), // 整理格式
           followerCount: user.Followers.length, // 計算追蹤者人數
-          isFollowed: req.user.Followings.some(f => f.id === user.id) // 判斷目前登入使用者是否已追蹤該 user 物件
+          isFollowed: req.user.Followings.some(f => f.id === user.id), // 判斷目前登入使用者是否已追蹤該 user 物件
+          isMyself: req.user.id === user.id
         }))
           .sort((a, b) => b.followerCount - a.followerCount) // 數字由大到小排序
         return res.render('top-users', { users: result })
@@ -221,6 +231,7 @@ const userController = {
       .then(([user, followship]) => {
         if (!user) throw new Error('使用者不存在！')
         if (followship) throw new Error('您已追蹤此使用者！')
+        if (req.user.id === user.id) throw new Error('自己無法追蹤自己！')
 
         return Followship.create({
           followerId: req.user.id,
@@ -242,6 +253,7 @@ const userController = {
     })
       .then(followship => {
         if (!followship) throw new Error('使用者不存在！')
+
         return followship.destroy()
       })
       .then(() => {
